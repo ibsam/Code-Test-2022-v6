@@ -82,7 +82,7 @@ class BookingController extends Controller
     {
         $data = $request->all();
         $cuser = $request->__authenticatedUser;
-        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
+        $response = $this->repository->updateJob($id, Arr::except($data, ['_token', 'submit']), $cuser);
 
         return response($response);
     }
@@ -194,27 +194,14 @@ class BookingController extends Controller
 
     public function distanceFeed(Request $request)
     {
-        $data = $request->all();
-
-        if (isset($data['distance']) && $data['distance'] != "") {
-            $distance = $data['distance'];
-        } else {
-            $distance = "";
-        }
-        if (isset($data['time']) && $data['time'] != "") {
-            $time = $data['time'];
-        } else {
-            $time = "";
-        }
-        if (isset($data['jobid']) && $data['jobid'] != "") {
-            $jobid = $data['jobid'];
-        }
-
-        if (isset($data['session_time']) && $data['session_time'] != "") {
-            $session = $data['session_time'];
-        } else {
-            $session = "";
-        }
+        $data               = $request->all();
+        $distance           = $data['distance'] ?? '';
+        $time               = $data['time'] ?? '';
+        $session            = $data['session_time'] ?? '';
+        $manually_handled   = ($data['manually_handled']) ? 'yes' : 'no';
+        $by_admin           = ($data['by_admin'] == 'true') ? 'yes' : 'no';
+        $jobid              = $data['jobid'] ?? '';
+        $admincomment       = $data['admincomment'] ?? '';
 
         if ($data['flagged'] == 'true') {
             if($data['admincomment'] == '') return "Please, add comment";
@@ -222,24 +209,7 @@ class BookingController extends Controller
         } else {
             $flagged = 'no';
         }
-        
-        if ($data['manually_handled'] == 'true') {
-            $manually_handled = 'yes';
-        } else {
-            $manually_handled = 'no';
-        }
 
-        if ($data['by_admin'] == 'true') {
-            $by_admin = 'yes';
-        } else {
-            $by_admin = 'no';
-        }
-
-        if (isset($data['admincomment']) && $data['admincomment'] != "") {
-            $admincomment = $data['admincomment'];
-        } else {
-            $admincomment = "";
-        }
         if ($time || $distance) {
 
             $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));

@@ -269,7 +269,7 @@ class BookingRepository extends BaseRepository
 
             //Event::fire(new JobWasCreated($job, $data, '*'));
 
-//            $this->sendNotificationToSuitableTranslators($job->id, $data, '*');// send Push for New job posting
+            //$this->sendNotificationToSuitableTranslators($job->id, $data, '*');// send Push for New job posting
         } else {
             $response['status'] = 'fail';
             $response['message'] = "Translator can not create booking";
@@ -490,19 +490,15 @@ class BookingRepository extends BaseRepository
                 if ($data['immediate'] == 'yes' && $not_get_emergency == 'yes') continue;
                 $jobs = $this->getPotentialJobIdsWithUserId($oneUser->id); // get all potential jobs of this user
                 foreach ($jobs as $oneJob) {
-                    if ($job->id == $oneJob->id) { // one potential job is the same with current job
-                        $userId = $oneUser->id;
-                        $job_for_translator = Job::assignedToPaticularTranslator($userId, $oneJob->id);
-                        if ($job_for_translator == 'SpecificJob') {
-                            $job_checker = Job::checkParticularJob($userId, $oneJob);
-                            if (($job_checker != 'userCanNotAcceptJob')) {
-                                if ($this->isNeedToDelayPush($oneUser->id)) {
-                                    $delpay_translator_array[] = $oneUser;
-                                } else {
-                                    $translator_array[] = $oneUser;
-                                }
-                            }
-                        }
+                    $userId = $oneUser->id;
+                    $job_for_translator = Job::assignedToPaticularTranslator($userId, $oneJob->id);
+                    if ($job->id != $oneJob->id || $job_for_translator != 'SpecificJob') continue; // one potential job is the same with current job
+                    $job_checker = Job::checkParticularJob($userId, $oneJob);
+                    if (($job_checker == 'userCanNotAcceptJob')) continue;
+                    if ($this->isNeedToDelayPush($oneUser->id)) {
+                        $delpay_translator_array[] = $oneUser;
+                    } else {
+                        $translator_array[] = $oneUser;
                     }
                 }
             }
@@ -549,7 +545,27 @@ class BookingRepository extends BaseRepository
 
         $physicalJobMessageTemplate = trans('sms.physical_job', ['date' => $date, 'time' => $time, 'town' => $city, 'duration' => $duration, 'jobId' => $jobId]);
 
-        // analyse weather it's phone or physical; if both = default to phone
+        $message = analyseJobType($job->customer_physical_type, $job->customer_phone_type);
+        Log::info($message);
+
+        // send messages via sms handler
+        foreach ($translators as $translator) {
+            // send message to translator
+            $status = SendSMSHelper::send(env('SMS_NUMBER'), $translator->mobile, $message);
+            Log::info('Send SMS to ' . $translator->email . ' (' . $translator->mobile . '), status: ' . print_r($status, true));
+        }
+
+        return count($translators);
+    }
+
+     /**
+     * Function to analyse weather it's phone or physical; if both = default to phone
+     * @param $customer_physical_type
+     * @param $customer_phone_type
+     * @return string
+     */
+    function analyseJobType($customer_physical_type, $customer_phone_type)
+    {
         if ($job->customer_physical_type == 'yes' && $job->customer_phone_type == 'no') {
             // It's a physical job
             $message = $physicalJobMessageTemplate;
@@ -563,16 +579,7 @@ class BookingRepository extends BaseRepository
             // This shouldn't be feasible, so no handling of this edge case
             $message = '';
         }
-        Log::info($message);
-
-        // send messages via sms handler
-        foreach ($translators as $translator) {
-            // send message to translator
-            $status = SendSMSHelper::send(env('SMS_NUMBER'), $translator->mobile, $message);
-            Log::info('Send SMS to ' . $translator->email . ' (' . $translator->mobile . '), status: ' . print_r($status, true));
-        }
-
-        return count($translators);
+        return $message;
     }
 
     /**
@@ -719,16 +726,16 @@ class BookingRepository extends BaseRepository
         $translatorsId = collect($blacklist)->pluck('translator_id')->all();
         $users = User::getPotentialUsers($translator_type, $joblanguage, $gender, $translator_level, $translatorsId);
 
-//        foreach ($job_ids as $k => $v)     // checking translator town
-//        {
-//            $job = Job::find($v->id);
-//            $jobuserid = $job->user_id;
-//            $checktown = Job::checkTowns($jobuserid, $user_id);
-//            if (($job->customer_phone_type == 'no' || $job->customer_phone_type == '') && $job->customer_physical_type == 'yes' && $checktown == false) {
-//                unset($job_ids[$k]);
-//            }
-//        }
-//        $jobs = TeHelper::convertJobIdsInObjs($job_ids);
+       /**foreach ($job_ids as $k => $v)     // checking translator town
+       {
+           $job = Job::find($v->id);
+           $jobuserid = $job->user_id;
+           $checktown = Job::checkTowns($jobuserid, $user_id);
+           if (($job->customer_phone_type == 'no' || $job->customer_phone_type == '') && $job->customer_physical_type == 'yes' && $checktown == false) {
+               unset($job_ids[$k]);
+           }
+       }
+       $jobs = TeHelper::convertJobIdsInObjs($job_ids);**/
         return $users;
 
     }
@@ -845,7 +852,7 @@ class BookingRepository extends BaseRepository
      */
     private function changeTimedoutStatus($job, $data, $changedTranslator)
     {
-//        if (in_array($data['status'], ['pending', 'assigned']) && date('Y-m-d H:i:s') <= $job->due) {
+        //if (in_array($data['status'], ['pending', 'assigned']) && date('Y-m-d H:i:s') <= $job->due) {
         $old_status = $job->status;
         $job->status = $data['status'];
         $user = $job->user()->first();
@@ -879,7 +886,7 @@ class BookingRepository extends BaseRepository
             return true;
         }
 
-//        }
+        //}
         return false;
     }
 
